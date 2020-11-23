@@ -4,6 +4,8 @@ import apriltag
 from matplotlib import pyplot as plt
 import open3d
 import sys
+from datetime import datetime
+import os
 
 # camera intrinsics
 #[[834.27154541   0.         312.73457454]
@@ -29,6 +31,12 @@ cy = 264.76828241;
 intrinsic_matrix = np.array([[fx, 0 ,cx], [0, fy, cy], [0, 0, 1]])
 tag_size = 0.028
 cap = cv2.VideoCapture(0)
+out = cv2.VideoWriter('output.avi', cv2.VideoWriter_fourcc(*'DIVX'), 15, (640,480))
+
+now = datetime.now()
+LOG_DIR = "poses/" + now.strftime("%Y%m%d-%H%M%S") + "/"
+if not os.path.exists(LOG_DIR):
+    os.mkdir(LOG_DIR)
 
 while(True):
     ret, image = cap.read()
@@ -41,7 +49,15 @@ while(True):
         pose, e0, e1 = detector.detection_pose(r,camera_params,tag_size)
         R = pose[0:3,0:3]
         t = pose[0:3,3]
-        xyz_rot = np.dot(np.matmul(np.array([[1,0,0],[0,0,-1],[0,1,0]]),R), xyz.T)
+
+        with open(LOG_DIR + "rotation.txt", 'ab') as f:
+            np.savetxt(f, np.reshape(R, (-1)), fmt='%.4f', delimiter=',', newline=' ')
+            f.write(b'\n')
+        with open(LOG_DIR + "translation.txt", 'ab') as f:
+            np.savetxt(f, t, fmt='%.4f', delimiter=',', newline=' ')
+            f.write(b'\n')
+
+        xyz_rot = np.dot(np.matmul(np.array([[1,0,0],[0,-1,0],[0,0,-1]]),R), xyz.T)
         xyz_rot_tran = np.add(xyz_rot,np.expand_dims(t,1)).T*10
 
         # object point to image point
@@ -77,7 +93,9 @@ while(True):
 
     # show the output image after AprilTag detection
     cv2.imshow("Image", image)
+    out.write(image)
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 cap.release()
+out.release()
 cv2.destroyAllWindows()
